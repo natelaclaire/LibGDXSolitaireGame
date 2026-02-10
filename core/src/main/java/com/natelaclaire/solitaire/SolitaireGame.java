@@ -252,7 +252,7 @@ public class SolitaireGame extends ApplicationAdapter {
         tableauSpacingFaceDown = Math.min(baseFaceDown, maxSpacing * 0.6f);
         tableauSpacingFaceUp = Math.min(maxSpacing, Math.max(tableauSpacingFaceUp, tableauSpacingFaceDown * 1.5f));
         if (font != null) {
-            float fontScale = Math.max(0.6f, cardHeight / 220f);
+            float fontScale = Math.max(0.6f, cardHeight / 220f) * 2f;
             font.getData().setScale(fontScale);
         }
     }
