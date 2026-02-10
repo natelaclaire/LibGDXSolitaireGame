@@ -220,7 +220,7 @@ public class SolitaireGame extends ApplicationAdapter {
         for (int i = 0; i < pile.cards.size; i++) {
             Card card = pile.cards.get(i);
             drawCard(pile.x, y, card);
-            y += card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown;
+            y -= card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown;
         }
     }
 
@@ -261,7 +261,7 @@ public class SolitaireGame extends ApplicationAdapter {
         if (selectedPile.type == PileType.TABLEAU) {
             for (int i = 0; i < selectedIndex; i++) {
                 Card card = selectedPile.cards.get(i);
-                y += card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown;
+                y -= card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown;
             }
         }
         float height = cardHeight;
@@ -361,10 +361,12 @@ public class SolitaireGame extends ApplicationAdapter {
         float currentY = pile.y;
         for (int i = 0; i < pile.cards.size; i++) {
             Card card = pile.cards.get(i);
-            float nextY = currentY + (card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown);
+            float nextY = currentY - (card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown);
             boolean isLast = i == pile.cards.size - 1;
-            float cardTop = isLast ? currentY + cardHeight : nextY;
-            if (y >= currentY && y <= cardTop) {
+            float cardBottom = isLast ? currentY - cardHeight : nextY;
+            float minY = Math.min(currentY, cardBottom);
+            float maxY = Math.max(currentY, cardBottom);
+            if (y >= minY && y <= maxY) {
                 return i;
             }
             currentY = nextY;
@@ -483,9 +485,11 @@ public class SolitaireGame extends ApplicationAdapter {
         float currentY = pile.y;
         for (int i = 0; i < pile.cards.size; i++) {
             Card card = pile.cards.get(i);
-            float nextY = currentY + (card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown);
-            float topY = (i == pile.cards.size - 1) ? currentY + cardHeight : nextY;
-            if (x >= pile.x && x <= pile.x + cardWidth && y >= currentY && y <= topY) {
+            float nextY = currentY - (card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown);
+            float bottomY = (i == pile.cards.size - 1) ? currentY - cardHeight : nextY;
+            float minY = Math.min(currentY, bottomY);
+            float maxY = Math.max(currentY, bottomY);
+            if (x >= pile.x && x <= pile.x + cardWidth && y >= minY && y <= maxY) {
                 return true;
             }
             currentY = nextY;
