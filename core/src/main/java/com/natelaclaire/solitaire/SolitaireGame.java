@@ -7,11 +7,11 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.GlyphLayout;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
@@ -23,12 +23,12 @@ public class SolitaireGame extends ApplicationAdapter {
     private static final Color OUTLINE_COLOR = new Color(0f, 0f, 0f, 0.45f);
 
     private SpriteBatch batch;
-    private BitmapFont font;
-    private GlyphLayout layout;
     private OrthographicCamera camera;
     private ScreenViewport viewport;
     private Texture whiteTex;
-    private Texture backTex;
+    private Texture tilesheet;
+    private TextureRegion backRegion;
+    private ObjectMap<String, TextureRegion> cardRegions;
 
     private float worldWidth;
     private float worldHeight;
@@ -59,15 +59,13 @@ public class SolitaireGame extends ApplicationAdapter {
     @Override
     public void create() {
         batch = new SpriteBatch();
-        font = new BitmapFont();
-        layout = new GlyphLayout();
 
         camera = new OrthographicCamera();
         viewport = new ScreenViewport(camera);
         viewport.apply(true);
 
         whiteTex = createSolidTexture(Color.WHITE);
-        backTex = createSolidTexture(CARD_BACK);
+        loadCardArt();
 
         setupGame();
 
@@ -114,9 +112,10 @@ public class SolitaireGame extends ApplicationAdapter {
     @Override
     public void dispose() {
         batch.dispose();
-        font.dispose();
         whiteTex.dispose();
-        backTex.dispose();
+        if (tilesheet != null) {
+            tilesheet.dispose();
+        }
     }
 
     private Texture createSolidTexture(Color color) {
@@ -126,6 +125,39 @@ public class SolitaireGame extends ApplicationAdapter {
         Texture texture = new Texture(pixmap);
         pixmap.dispose();
         return texture;
+    }
+
+    private void loadCardArt() {
+        cardRegions = new ObjectMap<>();
+        tilesheet = new Texture("cards/Tilesheet/cardsLarge_tilemap.png");
+        tilesheet.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        Array<String> names = new Array<>();
+        String csv = Gdx.files.internal("cards/PNG/Cards (large)/_cards.csv").readString("UTF-8");
+        for (String line : csv.split("\\r?\\n")) {
+            String trimmed = line.trim();
+            if (!trimmed.isEmpty()) {
+                names.add(trimmed);
+            }
+        }
+
+        int columns = 14;
+        int tile = 64;
+        int gap = 1;
+        int sheetHeight = tilesheet.getHeight();
+
+        for (int i = 0; i < names.size; i++) {
+            int col = i % columns;
+            int row = i / columns;
+            int x = col * (tile + gap);
+            int y = sheetHeight - (row + 1) * tile - row * gap;
+            TextureRegion region = new TextureRegion(tilesheet, x, y, tile, tile);
+            String name = names.get(i);
+            cardRegions.put(name, region);
+            if ("card_back".equals(name)) {
+                backRegion = region;
+            }
+        }
     }
 
     private void setupGame() {
@@ -179,9 +211,6 @@ public class SolitaireGame extends ApplicationAdapter {
         cardWidth = Math.min(maxCardWidth, maxCardHeight * 0.72f);
         cardHeight = cardWidth / 0.72f;
 
-        tableauSpacingFaceDown = cardHeight * 0.18f;
-        tableauSpacingFaceUp = cardHeight * 0.28f;
-
         float topRowY = worldHeight - gutter - cardHeight;
         stock.setPosition(gutter, topRowY);
         waste.setPosition(gutter * 2f + cardWidth, topRowY);
@@ -195,9 +224,19 @@ public class SolitaireGame extends ApplicationAdapter {
             float x = gutter + i * (cardWidth + gutter);
             tableau.get(i).setPosition(x, tableauY);
         }
-
-        float fontScale = Math.max(0.5f, cardHeight / 220f);
-        font.getData().setScale(fontScale);
+        float baseFaceDown = cardHeight * 0.14f;
+        float baseFaceUp = cardHeight * 0.22f;
+        float maxSpacing = baseFaceUp;
+        int maxStack = 0;
+        for (Pile pile : tableau) {
+            maxStack = Math.max(maxStack, pile.cards.size);
+        }
+        if (maxStack > 1) {
+            float available = Math.max(1f, tableauY - gutter - cardHeight);
+            maxSpacing = Math.max(6f, available / (maxStack - 1));
+        }
+        tableauSpacingFaceUp = Math.min(baseFaceUp, maxSpacing);
+        tableauSpacingFaceDown = Math.min(baseFaceDown, maxSpacing * 0.7f);
     }
 
     private void drawPiles() {
@@ -254,22 +293,23 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private void drawCard(float x, float y, Card card) {
-        Texture tex = card.faceUp ? whiteTex : backTex;
-        Color color = card.faceUp ? CARD_FACE : CARD_BACK;
-        batch.setColor(color);
-        batch.draw(tex, x, y, cardWidth, cardHeight);
-        batch.setColor(Color.WHITE);
-        drawOutline(x, y, cardWidth, cardHeight);
-
         if (card.faceUp) {
-            font.setColor(card.isRed() ? Color.FIREBRICK : Color.BLACK);
-            String label = card.label();
-            layout.setText(font, label);
-            float textX = x + cardWidth * 0.08f;
-            float textY = y + cardHeight * 0.92f;
-            font.draw(batch, layout, textX, textY);
-            font.setColor(Color.WHITE);
+            TextureRegion region = cardRegions.get(card.assetKey());
+            if (region != null) {
+                batch.draw(region, x, y, cardWidth, cardHeight);
+            } else {
+                batch.setColor(CARD_FACE);
+                batch.draw(whiteTex, x, y, cardWidth, cardHeight);
+                batch.setColor(Color.WHITE);
+            }
+        } else if (backRegion != null) {
+            batch.draw(backRegion, x, y, cardWidth, cardHeight);
+        } else {
+            batch.setColor(CARD_BACK);
+            batch.draw(whiteTex, x, y, cardWidth, cardHeight);
+            batch.setColor(Color.WHITE);
         }
+        drawOutline(x, y, cardWidth, cardHeight);
     }
 
     private void drawOutline(float x, float y, float width, float height) {
@@ -654,7 +694,26 @@ public class SolitaireGame extends ApplicationAdapter {
             return suit == Suit.HEARTS || suit == Suit.DIAMONDS;
         }
 
-        String label() {
+        String assetKey() {
+            String suitName;
+            switch (suit) {
+                case CLUBS:
+                    suitName = "clubs";
+                    break;
+                case DIAMONDS:
+                    suitName = "diamonds";
+                    break;
+                case HEARTS:
+                    suitName = "hearts";
+                    break;
+                case SPADES:
+                    suitName = "spades";
+                    break;
+                default:
+                    suitName = "spades";
+                    break;
+            }
+
             String rankLabel;
             switch (rank) {
                 case 1:
@@ -669,29 +728,22 @@ public class SolitaireGame extends ApplicationAdapter {
                 case 13:
                     rankLabel = "K";
                     break;
+                case 10:
+                    rankLabel = "10";
+                    break;
                 default:
-                    rankLabel = Integer.toString(rank);
+                    rankLabel = String.format("%02d", rank);
                     break;
             }
-            return rankLabel + suit.symbol();
+            return "card_" + suitName + "_" + rankLabel;
         }
     }
 
     private enum Suit {
-        CLUBS("C"),
-        DIAMONDS("D"),
-        HEARTS("H"),
-        SPADES("S");
-
-        private final String symbol;
-
-        Suit(String symbol) {
-            this.symbol = symbol;
-        }
-
-        String symbol() {
-            return symbol;
-        }
+        CLUBS,
+        DIAMONDS,
+        HEARTS,
+        SPADES
     }
 
     private enum PileType {
