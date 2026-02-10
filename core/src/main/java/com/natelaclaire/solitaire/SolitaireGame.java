@@ -58,6 +58,7 @@ public class SolitaireGame extends ApplicationAdapter {
     private int drawCount = 3;
     private String frontPrefix = "card";
     private String backName = "purple_back_dark_inner.png";
+    private Array<GameState> undoStack;
     private static final String[] BACK_CHOICES = {
         "black_back_dark_inner.png",
         "black_back_intricate.png",
@@ -112,6 +113,12 @@ public class SolitaireGame extends ApplicationAdapter {
     private float newGameY;
     private float newGameWidth;
     private float newGameHeight;
+    private float undoButtonX;
+    private float undoButtonY;
+    private float undoButtonWidth;
+    private float undoButtonHeight;
+    private float scoreX;
+    private float scoreY;
     private float optionsButtonX;
     private float optionsButtonY;
     private float optionsButtonWidth;
@@ -198,6 +205,7 @@ public class SolitaireGame extends ApplicationAdapter {
         whiteTex = createSolidTexture(Color.WHITE);
         reloadCardArt();
 
+        undoStack = new Array<>();
         setupGame();
 
         Gdx.input.setInputProcessor(new InputAdapter() {
@@ -331,6 +339,7 @@ public class SolitaireGame extends ApplicationAdapter {
         }
         winState = false;
         score = 0;
+        undoStack.clear();
     }
 
     private Array<Card> createDeck() {
@@ -366,8 +375,14 @@ public class SolitaireGame extends ApplicationAdapter {
             float x = gutter + i * (cardWidth + gutter);
             tableau.get(i).setPosition(x, tableauY);
         }
-        newGameWidth = cardWidth * 2.1f;
+        newGameWidth = cardWidth * 1.6f;
         newGameHeight = cardHeight * 0.55f;
+        float maxRowWidth = worldWidth - gutter * 2f;
+        float desiredRowWidth = newGameWidth * 4f + gutter * 3f;
+        if (desiredRowWidth > maxRowWidth) {
+            newGameWidth = (maxRowWidth - gutter * 3f) / 4f;
+        }
+        newGameHeight = Math.min(newGameHeight, cardHeight * 0.55f);
         newGameX = worldWidth - gutter - newGameWidth;
         newGameY = gutter * 0.6f;
         rulesButtonWidth = newGameWidth;
@@ -378,6 +393,10 @@ public class SolitaireGame extends ApplicationAdapter {
         optionsButtonHeight = newGameHeight;
         optionsButtonX = rulesButtonX - gutter - optionsButtonWidth;
         optionsButtonY = newGameY;
+        undoButtonWidth = newGameWidth;
+        undoButtonHeight = newGameHeight;
+        undoButtonX = optionsButtonX - gutter - undoButtonWidth;
+        undoButtonY = newGameY;
         rulesWidth = worldWidth * 0.72f;
         rulesHeight = worldHeight * 0.72f;
         rulesX = (worldWidth - rulesWidth) * 0.5f;
@@ -405,6 +424,13 @@ public class SolitaireGame extends ApplicationAdapter {
             float fontScale = Math.max(0.6f, cardHeight / 220f) * 2f;
             font.getData().setScale(fontScale);
             optionsRowHeight = font.getLineHeight() * 1.8f;
+            layout.setText(font, "Score: 99999");
+            scoreX = gutter;
+            scoreY = newGameY + (newGameHeight + layout.height) * 0.5f;
+            float scoreRight = scoreX + layout.width + gutter;
+            if (scoreRight > undoButtonX) {
+                scoreY = newGameY + newGameHeight + layout.height + gutter * 0.5f;
+            }
         }
         updateRulesLayout();
     }
@@ -430,6 +456,7 @@ public class SolitaireGame extends ApplicationAdapter {
         drawNewGameButton();
         drawRulesButton();
         drawOptionsButton();
+        drawUndoButton();
         drawScore();
         if (rulesVisible) {
             drawRulesOverlay();
@@ -602,13 +629,23 @@ public class SolitaireGame extends ApplicationAdapter {
         font.draw(batch, layout, textX, textY);
     }
 
+    private void drawUndoButton() {
+        batch.setColor(0f, 0f, 0f, 0.4f);
+        batch.draw(whiteTex, undoButtonX, undoButtonY, undoButtonWidth, undoButtonHeight);
+        batch.setColor(Color.WHITE);
+        drawOutline(undoButtonX, undoButtonY, undoButtonWidth, undoButtonHeight);
+        font.setColor(Color.WHITE);
+        layout.setText(font, "Undo");
+        float textX = undoButtonX + (undoButtonWidth - layout.width) * 0.5f;
+        float textY = undoButtonY + (undoButtonHeight + layout.height) * 0.5f;
+        font.draw(batch, layout, textX, textY);
+    }
+
     private void drawScore() {
         font.setColor(Color.WHITE);
         String text = "Score: " + score;
         layout.setText(font, text);
-        float x = gutter;
-        float y = newGameY + (newGameHeight + layout.height) * 0.5f;
-        font.draw(batch, layout, x, y);
+        font.draw(batch, layout, scoreX, scoreY);
     }
 
     private void drawRulesOverlay() {
@@ -778,6 +815,11 @@ public class SolitaireGame extends ApplicationAdapter {
             return true;
         }
 
+        if (hitUndoButton(tmp.x, tmp.y)) {
+            undoLastAction();
+            return true;
+        }
+
         if (hitOptionsButton(tmp.x, tmp.y)) {
             optionsVisible = true;
             rulesVisible = false;
@@ -912,12 +954,14 @@ public class SolitaireGame extends ApplicationAdapter {
         }
         clearSelection();
         if (stock.cards.size > 0) {
+            pushUndoState();
             for (int i = 0; i < drawCount && stock.cards.size > 0; i++) {
                 Card card = stock.cards.pop();
                 card.faceUp = true;
                 waste.cards.add(card);
             }
         } else if (waste.cards.size > 0) {
+            pushUndoState();
             while (waste.cards.size > 0) {
                 Card card = waste.cards.pop();
                 card.faceUp = false;
@@ -948,6 +992,7 @@ public class SolitaireGame extends ApplicationAdapter {
             Card card = pile.cards.get(index);
             if (!card.faceUp) {
                 if (index == pile.cards.size - 1) {
+                    pushUndoState();
                     card.faceUp = true;
                     addScore(5);
                 }
@@ -1004,6 +1049,7 @@ public class SolitaireGame extends ApplicationAdapter {
             }
             Card card = moving.first();
             if (canPlaceOnFoundation(destination, card)) {
+                pushUndoState();
                 removeSelectedCards();
                 destination.cards.add(card);
                 applyMoveScore(selectedPile.type, destination.type);
@@ -1014,6 +1060,7 @@ public class SolitaireGame extends ApplicationAdapter {
 
         if (destination.type == PileType.TABLEAU) {
             if (canPlaceOnTableau(destination, moving.first())) {
+                pushUndoState();
                 removeSelectedCards();
                 for (Card card : moving) {
                     destination.cards.add(card);
@@ -1120,6 +1167,11 @@ public class SolitaireGame extends ApplicationAdapter {
             && y >= rulesButtonY && y <= rulesButtonY + rulesButtonHeight;
     }
 
+    private boolean hitUndoButton(float x, float y) {
+        return x >= undoButtonX && x <= undoButtonX + undoButtonWidth
+            && y >= undoButtonY && y <= undoButtonY + undoButtonHeight;
+    }
+
     private boolean hitOptionsButton(float x, float y) {
         return x >= optionsButtonX && x <= optionsButtonX + optionsButtonWidth
             && y >= optionsButtonY && y <= optionsButtonY + optionsButtonHeight;
@@ -1171,6 +1223,67 @@ public class SolitaireGame extends ApplicationAdapter {
             return true;
         }
         return false;
+    }
+
+    private void pushUndoState() {
+        if (undoStack == null) {
+            return;
+        }
+        undoStack.add(snapshotState());
+    }
+
+    private void undoLastAction() {
+        if (undoStack == null || undoStack.size == 0) {
+            return;
+        }
+        GameState state = undoStack.pop();
+        restoreState(state);
+    }
+
+    private GameState snapshotState() {
+        GameState state = new GameState();
+        state.score = score;
+        state.winState = winState;
+        state.stock = copyPile(stock);
+        state.waste = copyPile(waste);
+        state.foundations = new Array<>();
+        for (Pile pile : foundations) {
+            state.foundations.add(copyPile(pile));
+        }
+        state.tableau = new Array<>();
+        for (Pile pile : tableau) {
+            state.tableau.add(copyPile(pile));
+        }
+        return state;
+    }
+
+    private void restoreState(GameState state) {
+        score = state.score;
+        winState = state.winState;
+        stock = copyPile(state.stock);
+        waste = copyPile(state.waste);
+        foundations = new Array<>();
+        for (Pile pile : state.foundations) {
+            foundations.add(copyPile(pile));
+        }
+        tableau = new Array<>();
+        for (Pile pile : state.tableau) {
+            tableau.add(copyPile(pile));
+        }
+        updateLayout();
+        clearSelection();
+    }
+
+    private Pile copyPile(Pile source) {
+        Pile pile = new Pile(source.type);
+        pile.x = source.x;
+        pile.y = source.y;
+        for (Card card : source.cards) {
+            Card copy = new Card(card.suit, card.rank);
+            copy.faceUp = card.faceUp;
+            pile.cards.add(copy);
+        }
+        return pile;
     }
 
     private boolean hitRect(float x, float y, float rx, float ry, float rw, float rh) {
@@ -1326,6 +1439,15 @@ public class SolitaireGame extends ApplicationAdapter {
             this.x = x;
             this.y = y;
         }
+    }
+
+    private static class GameState {
+        int score;
+        boolean winState;
+        Pile stock;
+        Pile waste;
+        Array<Pile> foundations;
+        Array<Pile> tableau;
     }
 
     private static class Card {
