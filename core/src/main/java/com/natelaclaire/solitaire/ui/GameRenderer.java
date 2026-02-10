@@ -151,7 +151,6 @@ public class GameRenderer {
             batch.draw(assets.getWhiteTex(), x, y, layoutData.cardWidth, layoutData.cardHeight);
             batch.setColor(Color.WHITE);
         }
-        drawOutline(x, y, layoutData.cardWidth, layoutData.cardHeight);
     }
 
     private void drawOutline(float x, float y, float width, float height) {
