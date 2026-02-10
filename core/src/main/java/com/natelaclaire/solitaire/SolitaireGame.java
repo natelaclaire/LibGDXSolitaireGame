@@ -49,6 +49,7 @@ public class SolitaireGame extends ApplicationAdapter {
     private boolean dragging;
     private boolean pointerDown;
     private boolean justSelected;
+    private boolean winState;
     private float dragX;
     private float dragY;
     private float dragOffsetX;
@@ -183,6 +184,7 @@ public class SolitaireGame extends ApplicationAdapter {
             card.faceUp = false;
             stock.cards.add(card);
         }
+        winState = false;
     }
 
     private Array<Card> createDeck() {
@@ -246,6 +248,10 @@ public class SolitaireGame extends ApplicationAdapter {
 
         if (!dragging && selectedPile != null && selectedIndex >= 0) {
             drawSelection();
+        }
+
+        if (winState) {
+            drawWinBanner();
         }
     }
 
@@ -339,6 +345,17 @@ public class SolitaireGame extends ApplicationAdapter {
         batch.setColor(Color.WHITE);
     }
 
+    private void drawWinBanner() {
+        float bannerWidth = cardWidth * 5.2f;
+        float bannerHeight = cardHeight * 0.9f;
+        float x = (worldWidth - bannerWidth) * 0.5f;
+        float y = (worldHeight - bannerHeight) * 0.5f;
+        batch.setColor(0f, 0f, 0f, 0.55f);
+        batch.draw(whiteTex, x, y, bannerWidth, bannerHeight);
+        batch.setColor(Color.WHITE);
+        drawOutline(x, y, bannerWidth, bannerHeight);
+    }
+
     private void drawDraggedCards() {
         Array<Card> moving = getSelectedCards();
         if (moving.size == 0) {
@@ -412,6 +429,10 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private boolean handleTouchUp(int screenX, int screenY) {
+        if (winState) {
+            clearSelection();
+            return true;
+        }
         tmp.set(screenX, screenY);
         viewport.unproject(tmp);
 
@@ -419,6 +440,7 @@ public class SolitaireGame extends ApplicationAdapter {
             Pile destination = findPileAt(tmp.x, tmp.y);
             if (destination != null && tryMoveSelection(destination)) {
                 revealTableauTop();
+                checkWinState();
                 clearSelection();
             }
             dragging = false;
@@ -440,6 +462,7 @@ public class SolitaireGame extends ApplicationAdapter {
         if (!justSelected && destination != selectedPile) {
             if (tryMoveSelection(destination)) {
                 revealTableauTop();
+                checkWinState();
                 clearSelection();
                 return true;
             }
@@ -449,6 +472,9 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private void handleStockClick() {
+        if (winState) {
+            return;
+        }
         clearSelection();
         if (stock.cards.size > 0) {
             Card card = stock.cards.pop();
@@ -605,6 +631,14 @@ public class SolitaireGame extends ApplicationAdapter {
                 }
             }
         }
+    }
+
+    private void checkWinState() {
+        int count = 0;
+        for (Pile foundation : foundations) {
+            count += foundation.cards.size;
+        }
+        winState = count == 52;
     }
 
     private void clearSelection() {
