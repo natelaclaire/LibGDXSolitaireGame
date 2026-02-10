@@ -26,9 +26,10 @@ public class SolitaireGame extends ApplicationAdapter {
     private OrthographicCamera camera;
     private ScreenViewport viewport;
     private Texture whiteTex;
-    private Texture tilesheet;
+    private Texture backTexture;
     private TextureRegion backRegion;
     private ObjectMap<String, TextureRegion> cardRegions;
+    private Array<Texture> cardTextures;
 
     private float worldWidth;
     private float worldHeight;
@@ -113,8 +114,13 @@ public class SolitaireGame extends ApplicationAdapter {
     public void dispose() {
         batch.dispose();
         whiteTex.dispose();
-        if (tilesheet != null) {
-            tilesheet.dispose();
+        if (backTexture != null) {
+            backTexture.dispose();
+        }
+        if (cardTextures != null) {
+            for (Texture texture : cardTextures) {
+                texture.dispose();
+            }
         }
     }
 
@@ -129,33 +135,21 @@ public class SolitaireGame extends ApplicationAdapter {
 
     private void loadCardArt() {
         cardRegions = new ObjectMap<>();
-        tilesheet = new Texture("cards/Tilesheet/cardsLarge_tilemap.png");
-        tilesheet.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        cardTextures = new Array<>();
 
-        Array<String> names = new Array<>();
-        String csv = Gdx.files.internal("cards/PNG/Cards (large)/_cards.csv").readString("UTF-8");
-        for (String line : csv.split("\\r?\\n")) {
-            String trimmed = line.trim();
-            if (!trimmed.isEmpty()) {
-                names.add(trimmed);
-            }
-        }
+        backTexture = new Texture("Card_Game_GFX/Cards/card_backs/purple_back_dark_inner.png");
+        backTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        backRegion = new TextureRegion(backTexture);
 
-        int columns = 14;
-        int tile = 64;
-        int gap = 1;
-        int sheetHeight = tilesheet.getHeight();
-
-        for (int i = 0; i < names.size; i++) {
-            int col = i % columns;
-            int row = i / columns;
-            int x = col * (tile + gap);
-            int y = sheetHeight - (row + 1) * tile - row * gap;
-            TextureRegion region = new TextureRegion(tilesheet, x, y, tile, tile);
-            String name = names.get(i);
-            cardRegions.put(name, region);
-            if ("card_back".equals(name)) {
-                backRegion = region;
+        String[] suits = {"clubs", "diamond", "heart", "spade"};
+        for (String suit : suits) {
+            for (int rank = 1; rank <= 13; rank++) {
+                String name = "card_" + suit + "_" + rank;
+                String path = "Card_Game_GFX/Cards/" + name + ".png";
+                Texture texture = new Texture(path);
+                texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                cardTextures.add(texture);
+                cardRegions.put(name, new TextureRegion(texture));
             }
         }
     }
@@ -701,41 +695,20 @@ public class SolitaireGame extends ApplicationAdapter {
                     suitName = "clubs";
                     break;
                 case DIAMONDS:
-                    suitName = "diamonds";
+                    suitName = "diamond";
                     break;
                 case HEARTS:
-                    suitName = "hearts";
+                    suitName = "heart";
                     break;
                 case SPADES:
-                    suitName = "spades";
+                    suitName = "spade";
                     break;
                 default:
-                    suitName = "spades";
+                    suitName = "spade";
                     break;
             }
 
-            String rankLabel;
-            switch (rank) {
-                case 1:
-                    rankLabel = "A";
-                    break;
-                case 11:
-                    rankLabel = "J";
-                    break;
-                case 12:
-                    rankLabel = "Q";
-                    break;
-                case 13:
-                    rankLabel = "K";
-                    break;
-                case 10:
-                    rankLabel = "10";
-                    break;
-                default:
-                    rankLabel = String.format("%02d", rank);
-                    break;
-            }
-            return "card_" + suitName + "_" + rankLabel;
+            return "card_" + suitName + "_" + rank;
         }
     }
 
