@@ -59,6 +59,36 @@ public class SolitaireGame extends ApplicationAdapter {
     private float newGameY;
     private float newGameWidth;
     private float newGameHeight;
+    private float rulesButtonX;
+    private float rulesButtonY;
+    private float rulesButtonWidth;
+    private float rulesButtonHeight;
+    private boolean rulesVisible;
+    private float rulesX;
+    private float rulesY;
+    private float rulesWidth;
+    private float rulesHeight;
+    private float rulesScroll;
+    private float rulesMaxScroll;
+    private boolean rulesDragging;
+    private float rulesDragStartY;
+    private boolean rulesDragMoved;
+    private boolean rulesOpenedThisTap;
+    private Array<String> rulesLines;
+    private final String rulesText =
+        "Goal: Move all cards to the four foundation piles (one per suit), building from Ace to King.\n\n"
+            + "Setup: Seven tableau piles are dealt. The first has 1 card, the second 2, up to 7. "
+            + "Only the top card in each pile is face up. The rest form the stock.\n\n"
+            + "Moves:\n"
+            + "- Tableau: Build down in alternating colors (red/black).\n"
+            + "- Foundation: Build up in the same suit from Ace to King.\n"
+            + "- Empty tableau slots accept only Kings.\n"
+            + "- Turn over a face-down tableau card when it becomes the top card.\n\n"
+            + "Stock: Draw 3 cards to the waste. Only the top waste card is playable.\n"
+            + "Recycle the waste back to the stock when empty (score penalty applies).\n\n"
+            + "Scoring (standard draw-3):\n"
+            + "+10 to foundation, +5 waste to tableau, +5 flip a tableau card, "
+            + "-15 foundation to tableau, -100 recycle waste.";
     private float dragX;
     private float dragY;
     private float dragOffsetX;
@@ -96,6 +126,11 @@ public class SolitaireGame extends ApplicationAdapter {
             @Override
             public boolean touchUp(int screenX, int screenY, int pointer, int button) {
                 return handleTouchUp(screenX, screenY);
+            }
+
+            @Override
+            public boolean scrolled(float amountX, float amountY) {
+                return handleScroll(amountY);
             }
         });
     }
@@ -237,6 +272,14 @@ public class SolitaireGame extends ApplicationAdapter {
         newGameHeight = cardHeight * 0.55f;
         newGameX = worldWidth - gutter - newGameWidth;
         newGameY = gutter * 0.6f;
+        rulesButtonWidth = newGameWidth;
+        rulesButtonHeight = newGameHeight;
+        rulesButtonX = newGameX - gutter - rulesButtonWidth;
+        rulesButtonY = newGameY;
+        rulesWidth = worldWidth * 0.72f;
+        rulesHeight = worldHeight * 0.72f;
+        rulesX = (worldWidth - rulesWidth) * 0.5f;
+        rulesY = (worldHeight - rulesHeight) * 0.5f;
         float baseFaceDown = cardHeight * 0.12f;
         float baseFaceUp = cardHeight * 0.30f;
         float maxSpacing = baseFaceUp;
@@ -255,6 +298,7 @@ public class SolitaireGame extends ApplicationAdapter {
             float fontScale = Math.max(0.6f, cardHeight / 220f) * 2f;
             font.getData().setScale(fontScale);
         }
+        updateRulesLayout();
     }
 
     private void drawPiles() {
@@ -276,7 +320,11 @@ public class SolitaireGame extends ApplicationAdapter {
         }
 
         drawNewGameButton();
+        drawRulesButton();
         drawScore();
+        if (rulesVisible) {
+            drawRulesOverlay();
+        }
     }
 
     private void drawPile(Pile pile) {
@@ -416,6 +464,18 @@ public class SolitaireGame extends ApplicationAdapter {
         font.draw(batch, layout, textX, textY);
     }
 
+    private void drawRulesButton() {
+        batch.setColor(0f, 0f, 0f, 0.4f);
+        batch.draw(whiteTex, rulesButtonX, rulesButtonY, rulesButtonWidth, rulesButtonHeight);
+        batch.setColor(Color.WHITE);
+        drawOutline(rulesButtonX, rulesButtonY, rulesButtonWidth, rulesButtonHeight);
+        font.setColor(Color.WHITE);
+        layout.setText(font, "Rules");
+        float textX = rulesButtonX + (rulesButtonWidth - layout.width) * 0.5f;
+        float textY = rulesButtonY + (rulesButtonHeight + layout.height) * 0.5f;
+        font.draw(batch, layout, textX, textY);
+    }
+
     private void drawScore() {
         font.setColor(Color.WHITE);
         String text = "Score: " + score;
@@ -423,6 +483,41 @@ public class SolitaireGame extends ApplicationAdapter {
         float x = gutter;
         float y = newGameY + (newGameHeight + layout.height) * 0.5f;
         font.draw(batch, layout, x, y);
+    }
+
+    private void drawRulesOverlay() {
+        batch.setColor(0f, 0f, 0f, 0.75f);
+        batch.draw(whiteTex, rulesX, rulesY, rulesWidth, rulesHeight);
+        batch.setColor(Color.WHITE);
+        drawOutline(rulesX, rulesY, rulesWidth, rulesHeight);
+
+        float padding = rulesWidth * 0.05f;
+        float titleY = rulesY + rulesHeight - padding;
+        font.setColor(Color.WHITE);
+        layout.setText(font, "Rules");
+        font.draw(batch, layout, rulesX + padding, titleY);
+
+        layout.setText(font, "Close");
+        float closeX = rulesX + rulesWidth - padding - layout.width;
+        float closeY = titleY;
+        font.draw(batch, layout, closeX, closeY);
+
+        float contentTop = titleY - layout.height - padding * 0.5f;
+        float contentBottom = rulesY + padding;
+        float lineHeight = font.getLineHeight();
+        if (rulesLines != null) {
+            float y = contentTop - rulesScroll;
+            for (int i = 0; i < rulesLines.size; i++) {
+                String line = rulesLines.get(i);
+                if (y < contentBottom - lineHeight) {
+                    break;
+                }
+                if (y <= contentTop + lineHeight) {
+                    font.draw(batch, line, rulesX + padding, y);
+                }
+                y -= lineHeight * 1.05f;
+            }
+        }
     }
 
     private void drawDraggedCards() {
@@ -446,9 +541,27 @@ public class SolitaireGame extends ApplicationAdapter {
         pointerDown = true;
         justSelected = false;
 
+        if (rulesVisible) {
+            rulesDragging = true;
+            rulesDragMoved = false;
+            rulesDragStartY = tmp.y;
+            rulesOpenedThisTap = false;
+            return true;
+        }
+
         if (hitNewGame(tmp.x, tmp.y)) {
             setupGame();
             updateLayout();
+            return true;
+        }
+
+        if (hitRulesButton(tmp.x, tmp.y)) {
+            rulesVisible = true;
+            rulesScroll = 0f;
+            rulesDragging = true;
+            rulesDragStartY = tmp.y;
+            rulesDragMoved = false;
+            rulesOpenedThisTap = true;
             return true;
         }
 
@@ -483,6 +596,17 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private boolean handleTouchDragged(int screenX, int screenY) {
+        if (rulesVisible && rulesDragging) {
+            tmp.set(screenX, screenY);
+            viewport.unproject(tmp);
+            float dy = tmp.y - rulesDragStartY;
+            rulesDragStartY = tmp.y;
+            rulesScroll = clamp(rulesScroll - dy, 0f, rulesMaxScroll);
+            if (Math.abs(dy) > 2f) {
+                rulesDragMoved = true;
+            }
+            return true;
+        }
         if (!pointerDown || selectedPile == null) {
             return false;
         }
@@ -504,6 +628,17 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private boolean handleTouchUp(int screenX, int screenY) {
+        if (rulesVisible) {
+            rulesDragging = false;
+            if (rulesOpenedThisTap) {
+                rulesOpenedThisTap = false;
+                return true;
+            }
+            if (!rulesDragMoved) {
+                rulesVisible = false;
+            }
+            return true;
+        }
         if (winState) {
             clearSelection();
             return true;
@@ -753,6 +888,64 @@ public class SolitaireGame extends ApplicationAdapter {
     private boolean hitNewGame(float x, float y) {
         return x >= newGameX && x <= newGameX + newGameWidth
             && y >= newGameY && y <= newGameY + newGameHeight;
+    }
+
+    private boolean hitRulesButton(float x, float y) {
+        return x >= rulesButtonX && x <= rulesButtonX + rulesButtonWidth
+            && y >= rulesButtonY && y <= rulesButtonY + rulesButtonHeight;
+    }
+
+    private boolean handleScroll(float amountY) {
+        if (!rulesVisible) {
+            return false;
+        }
+        rulesScroll = clamp(rulesScroll + amountY * 24f, 0f, rulesMaxScroll);
+        return true;
+    }
+
+    private void updateRulesLayout() {
+        if (font == null) {
+            return;
+        }
+        rulesLines = new Array<>();
+        float padding = rulesWidth * 0.05f;
+        float maxWidth = rulesWidth - padding * 2f;
+        String[] paragraphs = rulesText.split("\\n");
+        for (String paragraph : paragraphs) {
+            if (paragraph.trim().isEmpty()) {
+                rulesLines.add("");
+                continue;
+            }
+            String[] words = paragraph.split("\\s+");
+            StringBuilder line = new StringBuilder();
+            for (String word : words) {
+                String test = line.length() == 0 ? word : line + " " + word;
+                layout.setText(font, test);
+                if (layout.width > maxWidth && line.length() > 0) {
+                    rulesLines.add(line.toString());
+                    line.setLength(0);
+                    line.append(word);
+                } else {
+                    line.setLength(0);
+                    line.append(test);
+                }
+            }
+            if (line.length() > 0) {
+                rulesLines.add(line.toString());
+            }
+        }
+
+        float lineHeight = font.getLineHeight() * 1.05f;
+        float contentHeight = rulesLines.size * lineHeight;
+        float titleHeight = font.getLineHeight() * 1.2f;
+        float paddingTotal = padding * 2f + titleHeight;
+        float available = rulesHeight - paddingTotal;
+        rulesMaxScroll = Math.max(0f, contentHeight - available);
+        rulesScroll = clamp(rulesScroll, 0f, rulesMaxScroll);
+    }
+
+    private float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private Pile findPileAt(float x, float y) {
