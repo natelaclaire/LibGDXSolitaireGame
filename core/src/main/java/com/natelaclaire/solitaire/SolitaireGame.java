@@ -16,6 +16,11 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.natelaclaire.solitaire.game.Card;
+import com.natelaclaire.solitaire.game.GameEngine;
+import com.natelaclaire.solitaire.game.GameState;
+import com.natelaclaire.solitaire.game.Pile;
+import com.natelaclaire.solitaire.game.PileType;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class SolitaireGame extends ApplicationAdapter {
@@ -53,12 +58,10 @@ public class SolitaireGame extends ApplicationAdapter {
     private boolean dragging;
     private boolean pointerDown;
     private boolean justSelected;
-    private boolean winState;
-    private int score;
-    private int drawCount = 3;
     private String frontPrefix = "card";
     private String backName = "purple_back_dark_inner.png";
-    private Array<GameState> undoStack;
+    private GameEngine engine;
+    private GameState state;
     private static final String[] BACK_CHOICES = {
         "black_back_dark_inner.png",
         "black_back_intricate.png",
@@ -205,7 +208,7 @@ public class SolitaireGame extends ApplicationAdapter {
         whiteTex = createSolidTexture(Color.WHITE);
         reloadCardArt();
 
-        undoStack = new Array<>();
+        engine = new GameEngine();
         setupGame();
 
         Gdx.input.setInputProcessor(new InputAdapter() {
@@ -309,47 +312,17 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private void setupGame() {
-        stock = new Pile(PileType.STOCK);
-        waste = new Pile(PileType.WASTE);
-        foundations = new Array<>();
-        tableau = new Array<>();
-        for (int i = 0; i < 4; i++) {
-            foundations.add(new Pile(PileType.FOUNDATION));
-        }
-        for (int i = 0; i < 7; i++) {
-            tableau.add(new Pile(PileType.TABLEAU));
-        }
-
-        Array<Card> deck = createDeck();
-        deck.shuffle();
-
-        for (int i = 0; i < 7; i++) {
-            Pile pile = tableau.get(i);
-            for (int j = 0; j <= i; j++) {
-                Card card = deck.pop();
-                card.faceUp = j == i;
-                pile.cards.add(card);
-            }
-        }
-
-        while (deck.size > 0) {
-            Card card = deck.pop();
-            card.faceUp = false;
-            stock.cards.add(card);
-        }
-        winState = false;
-        score = 0;
-        undoStack.clear();
+        engine.newGame();
+        refreshStateRefs();
+        clearSelection();
     }
 
-    private Array<Card> createDeck() {
-        Array<Card> deck = new Array<>(52);
-        for (Suit suit : Suit.values()) {
-            for (int rank = 1; rank <= 13; rank++) {
-                deck.add(new Card(suit, rank));
-            }
-        }
-        return deck;
+    private void refreshStateRefs() {
+        state = engine.getState();
+        stock = state.stock;
+        waste = state.waste;
+        foundations = state.foundations;
+        tableau = state.tableau;
     }
 
     private void updateLayout() {
@@ -449,7 +422,7 @@ public class SolitaireGame extends ApplicationAdapter {
             drawSelection();
         }
 
-        if (winState) {
+        if (engine.isWin()) {
             drawWinBanner();
         }
 
@@ -483,9 +456,9 @@ public class SolitaireGame extends ApplicationAdapter {
             drawOutline(waste.x, waste.y, cardWidth, cardHeight);
             return;
         }
-        int visible = drawCount == 3 ? 3 : 1;
+        int visible = engine.getDrawCount() == 3 ? 3 : 1;
         int start = Math.max(0, size - visible);
-        float offset = drawCount == 3 ? cardWidth * 0.3f : 0f;
+        float offset = engine.getDrawCount() == 3 ? cardWidth * 0.3f : 0f;
         for (int i = start; i < size; i++) {
             float x = waste.x + (i - start) * offset;
             drawCard(x, waste.y, waste.cards.get(i));
@@ -571,9 +544,9 @@ public class SolitaireGame extends ApplicationAdapter {
             height = maxY - minY;
         } else if (selectedPile.type == PileType.WASTE) {
             int size = selectedPile.cards.size;
-            int visible = drawCount == 3 ? 3 : 1;
+            int visible = engine.getDrawCount() == 3 ? 3 : 1;
             int start = Math.max(0, size - visible);
-            float offset = drawCount == 3 ? cardWidth * 0.3f : 0f;
+            float offset = engine.getDrawCount() == 3 ? cardWidth * 0.3f : 0f;
             x = selectedPile.x + (size - 1 - start) * offset;
             height = cardHeight;
         }
@@ -643,7 +616,7 @@ public class SolitaireGame extends ApplicationAdapter {
 
     private void drawScore() {
         font.setColor(Color.WHITE);
-        String text = "Score: " + score;
+        String text = "Score: " + engine.getScore();
         layout.setText(font, text);
         font.draw(batch, layout, scoreX, scoreY);
     }
@@ -707,8 +680,8 @@ public class SolitaireGame extends ApplicationAdapter {
         draw3Y = draw1Y;
         draw3W = buttonW;
         draw3H = buttonH;
-        drawOptionButton(draw1X, draw1Y, draw1W, draw1H, "1", drawCount == 1);
-        drawOptionButton(draw3X, draw3Y, draw3W, draw3H, "3", drawCount == 3);
+        drawOptionButton(draw1X, draw1Y, draw1W, draw1H, "1", engine.getDrawCount() == 1);
+        drawOptionButton(draw3X, draw3Y, draw3W, draw3H, "3", engine.getDrawCount() == 3);
 
         y -= optionsRowHeight;
         layout.setText(font, "Front");
@@ -816,7 +789,10 @@ public class SolitaireGame extends ApplicationAdapter {
         }
 
         if (hitUndoButton(tmp.x, tmp.y)) {
-            undoLastAction();
+            engine.undoLast();
+            refreshStateRefs();
+            updateLayout();
+            clearSelection();
             return true;
         }
 
@@ -906,7 +882,7 @@ public class SolitaireGame extends ApplicationAdapter {
             }
             return true;
         }
-        if (winState) {
+        if (engine.isWin()) {
             clearSelection();
             return true;
         }
@@ -916,8 +892,7 @@ public class SolitaireGame extends ApplicationAdapter {
         if (dragging) {
             Pile destination = findPileAt(tmp.x, tmp.y);
             if (destination != null && tryMoveSelection(destination)) {
-                revealTableauTop(selectedPile);
-                checkWinState();
+                engine.revealTopAfterMove(selectedPile);
                 clearSelection();
             }
             dragging = false;
@@ -938,8 +913,7 @@ public class SolitaireGame extends ApplicationAdapter {
 
         if (!justSelected && destination != selectedPile) {
             if (tryMoveSelection(destination)) {
-                revealTableauTop(selectedPile);
-                checkWinState();
+                engine.revealTopAfterMove(selectedPile);
                 clearSelection();
                 return true;
             }
@@ -949,26 +923,11 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private void handleStockClick() {
-        if (winState) {
+        if (engine.isWin()) {
             return;
         }
         clearSelection();
-        if (stock.cards.size > 0) {
-            pushUndoState();
-            for (int i = 0; i < drawCount && stock.cards.size > 0; i++) {
-                Card card = stock.cards.pop();
-                card.faceUp = true;
-                waste.cards.add(card);
-            }
-        } else if (waste.cards.size > 0) {
-            pushUndoState();
-            while (waste.cards.size > 0) {
-                Card card = waste.cards.pop();
-                card.faceUp = false;
-                stock.cards.add(card);
-            }
-            score = Math.max(0, score - 100);
-        }
+        engine.drawFromStock();
     }
 
     private boolean handleSelect(Pile pile, float x, float y) {
@@ -991,11 +950,7 @@ public class SolitaireGame extends ApplicationAdapter {
             }
             Card card = pile.cards.get(index);
             if (!card.faceUp) {
-                if (index == pile.cards.size - 1) {
-                    pushUndoState();
-                    card.faceUp = true;
-                    addScore(5);
-                }
+                engine.flipTopIfNeeded(pile, index);
                 clearSelection();
                 return true;
             }
@@ -1038,40 +993,7 @@ public class SolitaireGame extends ApplicationAdapter {
         if (selectedPile == null) {
             return false;
         }
-        Array<Card> moving = getSelectedCards();
-        if (moving.size == 0) {
-            return false;
-        }
-
-        if (destination.type == PileType.FOUNDATION) {
-            if (moving.size != 1) {
-                return false;
-            }
-            Card card = moving.first();
-            if (canPlaceOnFoundation(destination, card)) {
-                pushUndoState();
-                removeSelectedCards();
-                destination.cards.add(card);
-                applyMoveScore(selectedPile.type, destination.type);
-                return true;
-            }
-            return false;
-        }
-
-        if (destination.type == PileType.TABLEAU) {
-            if (canPlaceOnTableau(destination, moving.first())) {
-                pushUndoState();
-                removeSelectedCards();
-                for (Card card : moving) {
-                    destination.cards.add(card);
-                }
-                applyMoveScore(selectedPile.type, destination.type);
-                return true;
-            }
-            return false;
-        }
-
-        return false;
+        return engine.tryMove(selectedPile, selectedIndex, destination);
     }
 
     private Array<Card> getSelectedCards() {
@@ -1083,70 +1005,6 @@ public class SolitaireGame extends ApplicationAdapter {
             moving.add(selectedPile.cards.get(i));
         }
         return moving;
-    }
-
-    private void removeSelectedCards() {
-        if (selectedPile == null || selectedIndex < 0) {
-            return;
-        }
-        for (int i = selectedPile.cards.size - 1; i >= selectedIndex; i--) {
-            selectedPile.cards.removeIndex(i);
-        }
-    }
-
-    private boolean canPlaceOnFoundation(Pile foundation, Card card) {
-        if (foundation.cards.size == 0) {
-            return card.rank == 1;
-        }
-        Card top = foundation.cards.peek();
-        return top.suit == card.suit && card.rank == top.rank + 1;
-    }
-
-    private boolean canPlaceOnTableau(Pile pile, Card card) {
-        if (pile.cards.size == 0) {
-            return card.rank == 13;
-        }
-        Card top = pile.cards.peek();
-        return top.faceUp && top.isRed() != card.isRed() && card.rank == top.rank - 1;
-    }
-
-    private void revealTableauTop(Pile pile) {
-        if (pile == null || pile.type != PileType.TABLEAU) {
-            return;
-        }
-        if (pile.cards.size > 0) {
-            Card top = pile.cards.peek();
-            if (!top.faceUp) {
-                top.faceUp = true;
-                addScore(5);
-            }
-        }
-    }
-
-    private void checkWinState() {
-        int count = 0;
-        for (Pile foundation : foundations) {
-            count += foundation.cards.size;
-        }
-        winState = count == 52;
-    }
-
-    private void applyMoveScore(PileType from, PileType to) {
-        if (to == PileType.FOUNDATION) {
-            addScore(10);
-            return;
-        }
-        if (from == PileType.WASTE && to == PileType.TABLEAU) {
-            addScore(5);
-            return;
-        }
-        if (from == PileType.FOUNDATION && to == PileType.TABLEAU) {
-            score = Math.max(0, score - 15);
-        }
-    }
-
-    private void addScore(int delta) {
-        score = Math.max(0, score + delta);
     }
 
     private void clearSelection() {
@@ -1187,11 +1045,11 @@ public class SolitaireGame extends ApplicationAdapter {
 
     private boolean handleOptionsClick(float x, float y) {
         if (hitRect(x, y, draw1X, draw1Y, draw1W, draw1H)) {
-            drawCount = 1;
+            engine.setDrawCount(1);
             return true;
         }
         if (hitRect(x, y, draw3X, draw3Y, draw3W, draw3H)) {
-            drawCount = 3;
+            engine.setDrawCount(3);
             return true;
         }
         if (hitRect(x, y, frontClassicX, frontClassicY, frontClassicW, frontClassicH)) {
@@ -1225,66 +1083,6 @@ public class SolitaireGame extends ApplicationAdapter {
         return false;
     }
 
-    private void pushUndoState() {
-        if (undoStack == null) {
-            return;
-        }
-        undoStack.add(snapshotState());
-    }
-
-    private void undoLastAction() {
-        if (undoStack == null || undoStack.size == 0) {
-            return;
-        }
-        GameState state = undoStack.pop();
-        restoreState(state);
-    }
-
-    private GameState snapshotState() {
-        GameState state = new GameState();
-        state.score = score;
-        state.winState = winState;
-        state.stock = copyPile(stock);
-        state.waste = copyPile(waste);
-        state.foundations = new Array<>();
-        for (Pile pile : foundations) {
-            state.foundations.add(copyPile(pile));
-        }
-        state.tableau = new Array<>();
-        for (Pile pile : tableau) {
-            state.tableau.add(copyPile(pile));
-        }
-        return state;
-    }
-
-    private void restoreState(GameState state) {
-        score = state.score;
-        winState = state.winState;
-        stock = copyPile(state.stock);
-        waste = copyPile(state.waste);
-        foundations = new Array<>();
-        for (Pile pile : state.foundations) {
-            foundations.add(copyPile(pile));
-        }
-        tableau = new Array<>();
-        for (Pile pile : state.tableau) {
-            tableau.add(copyPile(pile));
-        }
-        updateLayout();
-        clearSelection();
-    }
-
-    private Pile copyPile(Pile source) {
-        Pile pile = new Pile(source.type);
-        pile.x = source.x;
-        pile.y = source.y;
-        for (Card card : source.cards) {
-            Card copy = new Card(card.suit, card.rank);
-            copy.faceUp = card.faceUp;
-            pile.cards.add(copy);
-        }
-        return pile;
-    }
 
     private boolean hitRect(float x, float y, float rx, float ry, float rw, float rh) {
         return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
@@ -1385,9 +1183,9 @@ public class SolitaireGame extends ApplicationAdapter {
             return hitStack(waste, x, y);
         }
         int size = waste.cards.size;
-        int visible = drawCount == 3 ? 3 : 1;
+        int visible = engine.getDrawCount() == 3 ? 3 : 1;
         int start = Math.max(0, size - visible);
-        float offset = drawCount == 3 ? cardWidth * 0.3f : 0f;
+        float offset = engine.getDrawCount() == 3 ? cardWidth * 0.3f : 0f;
         for (int i = start; i < size; i++) {
             float cardX = waste.x + (i - start) * offset;
             if (x >= cardX && x <= cardX + cardWidth && y >= waste.y && y <= waste.y + cardHeight) {
@@ -1423,82 +1221,5 @@ public class SolitaireGame extends ApplicationAdapter {
             currentY -= card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown;
         }
         return positions;
-    }
-
-    private static class Pile {
-        final PileType type;
-        final Array<Card> cards = new Array<>();
-        float x;
-        float y;
-
-        Pile(PileType type) {
-            this.type = type;
-        }
-
-        void setPosition(float x, float y) {
-            this.x = x;
-            this.y = y;
-        }
-    }
-
-    private static class GameState {
-        int score;
-        boolean winState;
-        Pile stock;
-        Pile waste;
-        Array<Pile> foundations;
-        Array<Pile> tableau;
-    }
-
-    private static class Card {
-        final Suit suit;
-        final int rank;
-        boolean faceUp;
-
-        Card(Suit suit, int rank) {
-            this.suit = suit;
-            this.rank = rank;
-        }
-
-        boolean isRed() {
-            return suit == Suit.HEARTS || suit == Suit.DIAMONDS;
-        }
-
-        String assetKey(String prefix) {
-            String suitName;
-            switch (suit) {
-                case CLUBS:
-                    suitName = "simplecard".equals(prefix) ? "club" : "clubs";
-                    break;
-                case DIAMONDS:
-                    suitName = "diamond";
-                    break;
-                case HEARTS:
-                    suitName = "heart";
-                    break;
-                case SPADES:
-                    suitName = "spade";
-                    break;
-                default:
-                    suitName = "spade";
-                    break;
-            }
-
-            return prefix + "_" + suitName + "_" + rank;
-        }
-    }
-
-    private enum Suit {
-        CLUBS,
-        DIAMONDS,
-        HEARTS,
-        SPADES
-    }
-
-    private enum PileType {
-        STOCK,
-        WASTE,
-        FOUNDATION,
-        TABLEAU
     }
 }
