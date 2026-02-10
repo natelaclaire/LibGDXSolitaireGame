@@ -7,6 +7,8 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector2;
@@ -30,6 +32,8 @@ public class SolitaireGame extends ApplicationAdapter {
     private TextureRegion backRegion;
     private ObjectMap<String, TextureRegion> cardRegions;
     private Array<Texture> cardTextures;
+    private BitmapFont font;
+    private GlyphLayout layout;
 
     private float worldWidth;
     private float worldHeight;
@@ -50,6 +54,10 @@ public class SolitaireGame extends ApplicationAdapter {
     private boolean pointerDown;
     private boolean justSelected;
     private boolean winState;
+    private float newGameX;
+    private float newGameY;
+    private float newGameWidth;
+    private float newGameHeight;
     private float dragX;
     private float dragY;
     private float dragOffsetX;
@@ -61,6 +69,8 @@ public class SolitaireGame extends ApplicationAdapter {
     @Override
     public void create() {
         batch = new SpriteBatch();
+        font = new BitmapFont();
+        layout = new GlyphLayout();
 
         camera = new OrthographicCamera();
         viewport = new FitViewport(1024f, 768f, camera);
@@ -115,6 +125,7 @@ public class SolitaireGame extends ApplicationAdapter {
     public void dispose() {
         batch.dispose();
         whiteTex.dispose();
+        font.dispose();
         if (backTexture != null) {
             backTexture.dispose();
         }
@@ -220,6 +231,10 @@ public class SolitaireGame extends ApplicationAdapter {
             float x = gutter + i * (cardWidth + gutter);
             tableau.get(i).setPosition(x, tableauY);
         }
+        newGameWidth = cardWidth * 2.1f;
+        newGameHeight = cardHeight * 0.55f;
+        newGameX = worldWidth - gutter - newGameWidth;
+        newGameY = gutter * 0.6f;
         float baseFaceDown = cardHeight * 0.12f;
         float baseFaceUp = cardHeight * 0.30f;
         float maxSpacing = baseFaceUp;
@@ -234,6 +249,10 @@ public class SolitaireGame extends ApplicationAdapter {
         tableauSpacingFaceUp = Math.min(baseFaceUp, maxSpacing);
         tableauSpacingFaceDown = Math.min(baseFaceDown, maxSpacing * 0.6f);
         tableauSpacingFaceUp = Math.min(maxSpacing, Math.max(tableauSpacingFaceUp, tableauSpacingFaceDown * 1.5f));
+        if (font != null) {
+            float fontScale = Math.max(0.6f, cardHeight / 220f);
+            font.getData().setScale(fontScale);
+        }
     }
 
     private void drawPiles() {
@@ -253,6 +272,8 @@ public class SolitaireGame extends ApplicationAdapter {
         if (winState) {
             drawWinBanner();
         }
+
+        drawNewGameButton();
     }
 
     private void drawPile(Pile pile) {
@@ -356,6 +377,18 @@ public class SolitaireGame extends ApplicationAdapter {
         drawOutline(x, y, bannerWidth, bannerHeight);
     }
 
+    private void drawNewGameButton() {
+        batch.setColor(0f, 0f, 0f, 0.4f);
+        batch.draw(whiteTex, newGameX, newGameY, newGameWidth, newGameHeight);
+        batch.setColor(Color.WHITE);
+        drawOutline(newGameX, newGameY, newGameWidth, newGameHeight);
+        font.setColor(Color.WHITE);
+        layout.setText(font, "New Game");
+        float textX = newGameX + (newGameWidth - layout.width) * 0.5f;
+        float textY = newGameY + (newGameHeight + layout.height) * 0.5f;
+        font.draw(batch, layout, textX, textY);
+    }
+
     private void drawDraggedCards() {
         Array<Card> moving = getSelectedCards();
         if (moving.size == 0) {
@@ -376,6 +409,12 @@ public class SolitaireGame extends ApplicationAdapter {
         downY = tmp.y;
         pointerDown = true;
         justSelected = false;
+
+        if (hitNewGame(tmp.x, tmp.y)) {
+            setupGame();
+            updateLayout();
+            return true;
+        }
 
         Pile hit = findPileAt(tmp.x, tmp.y);
         if (hit == null) {
@@ -647,6 +686,11 @@ public class SolitaireGame extends ApplicationAdapter {
         dragging = false;
         pointerDown = false;
         justSelected = false;
+    }
+
+    private boolean hitNewGame(float x, float y) {
+        return x >= newGameX && x <= newGameX + newGameWidth
+            && y >= newGameY && y <= newGameY + newGameHeight;
     }
 
     private Pile findPileAt(float x, float y) {
