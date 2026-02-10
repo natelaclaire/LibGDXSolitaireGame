@@ -937,9 +937,9 @@ public class SolitaireGame extends ApplicationAdapter {
 
         float lineHeight = font.getLineHeight() * 1.05f;
         float contentHeight = rulesLines.size * lineHeight;
-        float titleHeight = font.getLineHeight() * 1.2f;
-        float paddingTotal = padding * 2f + titleHeight;
-        float available = rulesHeight - paddingTotal;
+        float contentTop = rulesY + rulesHeight - padding - font.getLineHeight();
+        float contentBottom = rulesY + padding;
+        float available = Math.max(0f, contentTop - contentBottom);
         rulesMaxScroll = Math.max(0f, contentHeight - available);
         rulesScroll = clamp(rulesScroll, 0f, rulesMaxScroll);
     }
