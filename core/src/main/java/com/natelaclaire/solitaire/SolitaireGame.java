@@ -358,18 +358,12 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private int findTableauCardIndex(Pile pile, float y) {
-        float currentY = pile.y;
-        for (int i = 0; i < pile.cards.size; i++) {
-            Card card = pile.cards.get(i);
-            float nextY = currentY - (card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown);
-            boolean isLast = i == pile.cards.size - 1;
-            float cardBottom = isLast ? currentY - cardHeight : nextY;
-            float minY = Math.min(currentY, cardBottom);
-            float maxY = Math.max(currentY, cardBottom);
-            if (y >= minY && y <= maxY) {
+        float[] positions = buildTableauCardPositions(pile);
+        for (int i = positions.length - 1; i >= 0; i--) {
+            float cardY = positions[i];
+            if (y >= cardY && y <= cardY + cardHeight) {
                 return i;
             }
-            currentY = nextY;
         }
         return -1;
     }
@@ -482,19 +476,28 @@ public class SolitaireGame extends ApplicationAdapter {
         if (pile.cards.size == 0) {
             return hitStack(pile, x, y);
         }
-        float currentY = pile.y;
-        for (int i = 0; i < pile.cards.size; i++) {
-            Card card = pile.cards.get(i);
-            float nextY = currentY - (card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown);
-            float bottomY = (i == pile.cards.size - 1) ? currentY - cardHeight : nextY;
-            float minY = Math.min(currentY, bottomY);
-            float maxY = Math.max(currentY, bottomY);
-            if (x >= pile.x && x <= pile.x + cardWidth && y >= minY && y <= maxY) {
+        if (x < pile.x || x > pile.x + cardWidth) {
+            return false;
+        }
+        float[] positions = buildTableauCardPositions(pile);
+        for (int i = positions.length - 1; i >= 0; i--) {
+            float cardY = positions[i];
+            if (y >= cardY && y <= cardY + cardHeight) {
                 return true;
             }
-            currentY = nextY;
         }
         return false;
+    }
+
+    private float[] buildTableauCardPositions(Pile pile) {
+        float[] positions = new float[pile.cards.size];
+        float currentY = pile.y;
+        for (int i = 0; i < pile.cards.size; i++) {
+            positions[i] = currentY;
+            Card card = pile.cards.get(i);
+            currentY -= card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown;
+        }
+        return positions;
     }
 
     private static class Pile {
