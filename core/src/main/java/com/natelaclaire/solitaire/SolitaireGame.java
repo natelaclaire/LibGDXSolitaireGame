@@ -369,22 +369,24 @@ public class SolitaireGame extends ApplicationAdapter {
         }
         float x = selectedPile.x;
         float y = selectedPile.y;
+        float height = cardHeight;
         if (selectedPile.type == PileType.TABLEAU) {
-            for (int i = 0; i < selectedIndex; i++) {
-                Card card = selectedPile.cards.get(i);
-                y -= card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown;
+            float[] positions = buildTableauCardPositions(selectedPile);
+            float minY = positions[selectedIndex];
+            float maxY = positions[selectedIndex] + cardHeight;
+            for (int i = selectedIndex + 1; i < selectedPile.cards.size; i++) {
+                float cy = positions[i];
+                minY = Math.min(minY, cy);
+                maxY = Math.max(maxY, cy + cardHeight);
             }
+            y = minY;
+            height = maxY - minY;
         } else if (selectedPile.type == PileType.WASTE) {
             int size = selectedPile.cards.size;
             int start = Math.max(0, size - 3);
             float offset = cardWidth * 0.3f;
             x = selectedPile.x + (size - 1 - start) * offset;
-        }
-        float height = cardHeight;
-        if (selectedPile.type == PileType.TABLEAU) {
-            for (int i = selectedIndex + 1; i < selectedPile.cards.size; i++) {
-                height += selectedPile.cards.get(i).faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown;
-            }
+            height = cardHeight;
         }
         batch.setColor(1f, 1f, 0.3f, 0.4f);
         batch.draw(whiteTex, x - 4f, y - 4f, cardWidth + 8f, height + 8f);
@@ -754,8 +756,8 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private Pile findPileAt(float x, float y) {
-        if (hitStack(stock, x, y)) return stock;
         if (hitWaste(x, y)) return waste;
+        if (hitStack(stock, x, y)) return stock;
         for (Pile foundation : foundations) {
             if (hitStack(foundation, x, y)) return foundation;
         }
@@ -776,8 +778,13 @@ public class SolitaireGame extends ApplicationAdapter {
         int size = waste.cards.size;
         int start = Math.max(0, size - 3);
         float offset = cardWidth * 0.3f;
-        float topX = waste.x + (size - 1 - start) * offset;
-        return x >= topX && x <= topX + cardWidth && y >= waste.y && y <= waste.y + cardHeight;
+        for (int i = start; i < size; i++) {
+            float cardX = waste.x + (i - start) * offset;
+            if (x >= cardX && x <= cardX + cardWidth && y >= waste.y && y <= waste.y + cardHeight) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hitTableau(Pile pile, float x, float y) {
