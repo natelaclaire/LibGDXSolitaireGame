@@ -13,7 +13,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class SolitaireGame extends ApplicationAdapter {
@@ -24,7 +24,7 @@ public class SolitaireGame extends ApplicationAdapter {
 
     private SpriteBatch batch;
     private OrthographicCamera camera;
-    private ScreenViewport viewport;
+    private FitViewport viewport;
     private Texture whiteTex;
     private Texture backTexture;
     private TextureRegion backRegion;
@@ -62,7 +62,7 @@ public class SolitaireGame extends ApplicationAdapter {
         batch = new SpriteBatch();
 
         camera = new OrthographicCamera();
-        viewport = new ScreenViewport(camera);
+        viewport = new FitViewport(1024f, 768f, camera);
         viewport.apply(true);
 
         whiteTex = createSolidTexture(Color.WHITE);
@@ -218,8 +218,8 @@ public class SolitaireGame extends ApplicationAdapter {
             float x = gutter + i * (cardWidth + gutter);
             tableau.get(i).setPosition(x, tableauY);
         }
-        float baseFaceDown = cardHeight * 0.14f;
-        float baseFaceUp = cardHeight * 0.22f;
+        float baseFaceDown = cardHeight * 0.12f;
+        float baseFaceUp = cardHeight * 0.30f;
         float maxSpacing = baseFaceUp;
         int maxStack = 0;
         for (Pile pile : tableau) {
@@ -230,7 +230,8 @@ public class SolitaireGame extends ApplicationAdapter {
             maxSpacing = Math.max(6f, available / (maxStack - 1));
         }
         tableauSpacingFaceUp = Math.min(baseFaceUp, maxSpacing);
-        tableauSpacingFaceDown = Math.min(baseFaceDown, maxSpacing * 0.7f);
+        tableauSpacingFaceDown = Math.min(baseFaceDown, maxSpacing * 0.6f);
+        tableauSpacingFaceUp = Math.min(maxSpacing, Math.max(tableauSpacingFaceUp, tableauSpacingFaceDown * 1.5f));
     }
 
     private void drawPiles() {
