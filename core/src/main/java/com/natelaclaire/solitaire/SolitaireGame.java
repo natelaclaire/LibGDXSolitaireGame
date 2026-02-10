@@ -45,6 +45,11 @@ public class SolitaireGame extends ApplicationAdapter {
 
     private Pile selectedPile;
     private int selectedIndex = -1;
+    private boolean dragging;
+    private float dragX;
+    private float dragY;
+    private float dragOffsetX;
+    private float dragOffsetY;
     private final Vector2 tmp = new Vector2();
 
     @Override
@@ -65,7 +70,17 @@ public class SolitaireGame extends ApplicationAdapter {
         Gdx.input.setInputProcessor(new InputAdapter() {
             @Override
             public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-                return handleTouch(screenX, screenY);
+                return handleTouchDown(screenX, screenY);
+            }
+
+            @Override
+            public boolean touchDragged(int screenX, int screenY, int pointer) {
+                return handleTouchDragged(screenX, screenY);
+            }
+
+            @Override
+            public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+                return handleTouchUp(screenX, screenY);
             }
         });
     }
@@ -86,6 +101,9 @@ public class SolitaireGame extends ApplicationAdapter {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         drawPiles();
+        if (dragging && selectedPile != null && selectedIndex >= 0) {
+            drawDraggedCards();
+        }
         batch.end();
     }
 
@@ -188,7 +206,7 @@ public class SolitaireGame extends ApplicationAdapter {
             drawPile(pile);
         }
 
-        if (selectedPile != null && selectedIndex >= 0) {
+        if (!dragging && selectedPile != null && selectedIndex >= 0) {
             drawSelection();
         }
     }
@@ -202,11 +220,15 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private void drawStackedPile(Pile pile) {
-        if (pile.cards.size == 0) {
+        int effectiveSize = pile.cards.size;
+        if (dragging && pile == selectedPile) {
+            effectiveSize = Math.min(effectiveSize, selectedIndex);
+        }
+        if (effectiveSize == 0) {
             drawOutline(pile.x, pile.y, cardWidth, cardHeight);
             return;
         }
-        Card top = pile.cards.peek();
+        Card top = pile.cards.get(effectiveSize - 1);
         drawCard(pile.x, pile.y, top);
     }
 
@@ -218,6 +240,9 @@ public class SolitaireGame extends ApplicationAdapter {
 
         float y = pile.y;
         for (int i = 0; i < pile.cards.size; i++) {
+            if (dragging && pile == selectedPile && i >= selectedIndex) {
+                break;
+            }
             Card card = pile.cards.get(i);
             drawCard(pile.x, y, card);
             y -= card.faceUp ? tableauSpacingFaceUp : tableauSpacingFaceDown;
@@ -275,7 +300,20 @@ public class SolitaireGame extends ApplicationAdapter {
         batch.setColor(Color.WHITE);
     }
 
-    private boolean handleTouch(int screenX, int screenY) {
+    private void drawDraggedCards() {
+        Array<Card> moving = getSelectedCards();
+        if (moving.size == 0) {
+            return;
+        }
+        float y = dragY;
+        for (int i = 0; i < moving.size; i++) {
+            Card card = moving.get(i);
+            drawCard(dragX, y, card);
+            y -= tableauSpacingFaceUp;
+        }
+    }
+
+    private boolean handleTouchDown(int screenX, int screenY) {
         tmp.set(screenX, screenY);
         viewport.unproject(tmp);
 
@@ -290,22 +328,34 @@ public class SolitaireGame extends ApplicationAdapter {
             return true;
         }
 
-        if (selectedPile == null) {
-            return handleSelect(hit, tmp.x, tmp.y);
-        }
+        return handleDragStart(hit, tmp.x, tmp.y);
+    }
 
-        if (selectedPile == hit && hit.type == PileType.TABLEAU) {
-            return handleSelect(hit, tmp.x, tmp.y);
+    private boolean handleTouchDragged(int screenX, int screenY) {
+        if (!dragging) {
+            return false;
         }
+        tmp.set(screenX, screenY);
+        viewport.unproject(tmp);
+        dragX = tmp.x - dragOffsetX;
+        dragY = tmp.y - dragOffsetY;
+        return true;
+    }
 
-        if (tryMoveSelection(hit)) {
-            clearSelection();
+    private boolean handleTouchUp(int screenX, int screenY) {
+        if (!dragging) {
+            return false;
+        }
+        tmp.set(screenX, screenY);
+        viewport.unproject(tmp);
+
+        Pile destination = findPileAt(tmp.x, tmp.y);
+        if (destination != null && tryMoveSelection(destination)) {
             revealTableauTop();
-            return true;
         }
-
         clearSelection();
-        return false;
+        dragging = false;
+        return true;
     }
 
     private void handleStockClick() {
@@ -323,7 +373,7 @@ public class SolitaireGame extends ApplicationAdapter {
         }
     }
 
-    private boolean handleSelect(Pile pile, float x, float y) {
+    private boolean handleDragStart(Pile pile, float x, float y) {
         if (pile.cards.size == 0) {
             clearSelection();
             return false;
@@ -332,6 +382,9 @@ public class SolitaireGame extends ApplicationAdapter {
         if (pile.type == PileType.WASTE || pile.type == PileType.FOUNDATION) {
             selectedPile = pile;
             selectedIndex = pile.cards.size - 1;
+            float originX = pile.x;
+            float originY = pile.y;
+            beginDrag(originX, originY, x, y);
             return true;
         }
 
@@ -351,10 +404,21 @@ public class SolitaireGame extends ApplicationAdapter {
             }
             selectedPile = pile;
             selectedIndex = index;
+            float originX = pile.x;
+            float originY = buildTableauCardPositions(pile)[index];
+            beginDrag(originX, originY, x, y);
             return true;
         }
 
         return false;
+    }
+
+    private void beginDrag(float originX, float originY, float pointerX, float pointerY) {
+        dragging = true;
+        dragOffsetX = pointerX - originX;
+        dragOffsetY = pointerY - originY;
+        dragX = originX;
+        dragY = originY;
     }
 
     private int findTableauCardIndex(Pile pile, float y) {
@@ -454,6 +518,7 @@ public class SolitaireGame extends ApplicationAdapter {
     private void clearSelection() {
         selectedPile = null;
         selectedIndex = -1;
+        dragging = false;
     }
 
     private Pile findPileAt(float x, float y) {
