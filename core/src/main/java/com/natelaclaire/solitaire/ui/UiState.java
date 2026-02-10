@@ -21,6 +21,7 @@ public class UiState {
     public boolean rulesVisible;
     public float rulesScroll;
     public float rulesMaxScroll;
+    public float rulesMinScroll;
     public boolean rulesDragging;
     public float rulesDragStartY;
     public boolean rulesDragMoved;
@@ -45,7 +46,9 @@ public class UiState {
             + "Recycle the waste back to the stock when empty (score penalty applies).\n\n"
             + "Scoring (standard draw-3):\n"
             + "+10 to foundation, +5 waste to tableau, +5 flip a tableau card, "
-            + "-15 foundation to tableau, -100 recycle waste.";
+            + "-15 foundation to tableau, -100 recycle waste.\n\n"
+            + "Credits:\n"
+            + "Card designs from https://ci.itch.io/card-games-graphics-pack";
 
     public void clearSelection() {
         selectedPile = null;
@@ -93,7 +96,8 @@ public class UiState {
         float contentBottom = layout.rulesY + padding;
         float available = Math.max(0f, contentTop - contentBottom);
         rulesMaxScroll = Math.max(0f, contentHeight - available);
-        rulesScroll = clamp(rulesScroll, 0f, rulesMaxScroll);
+        rulesMinScroll = -rulesMaxScroll;
+        rulesScroll = clamp(rulesScroll, this.rulesMinScroll, rulesMaxScroll);
     }
 
     public void resetRulesScroll(float pointerY) {

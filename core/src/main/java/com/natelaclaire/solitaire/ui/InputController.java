@@ -122,7 +122,7 @@ public class InputController {
             viewport.unproject(tmp);
             float dy = tmp.y - ui.rulesDragStartY;
             ui.rulesDragStartY = tmp.y;
-            ui.rulesScroll = UiState.clamp(ui.rulesScroll - dy, 0f, ui.rulesMaxScroll);
+            ui.rulesScroll = UiState.clamp(ui.rulesScroll - dy, ui.rulesMinScroll, ui.rulesMaxScroll);
             if (Math.abs(dy) > 2f) {
                 ui.rulesDragMoved = true;
             }
@@ -209,7 +209,7 @@ public class InputController {
         if (ui.optionsVisible || !ui.rulesVisible) {
             return false;
         }
-        ui.rulesScroll = UiState.clamp(ui.rulesScroll + amountY * 24f, 0f, ui.rulesMaxScroll);
+        ui.rulesScroll = UiState.clamp(ui.rulesScroll + amountY * 24f, ui.rulesMinScroll, ui.rulesMaxScroll);
         return true;
     }
 

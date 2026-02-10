@@ -233,7 +233,7 @@ public class GameRenderer {
     }
 
     private void drawRulesButton() {
-        drawButton(layoutData.rulesButtonX, layoutData.rulesButtonY, layoutData.rulesButtonWidth, layoutData.rulesButtonHeight, "Rules");
+        drawButton(layoutData.rulesButtonX, layoutData.rulesButtonY, layoutData.rulesButtonWidth, layoutData.rulesButtonHeight, "Rules/Credits");
     }
 
     private void drawOptionsButton() {
