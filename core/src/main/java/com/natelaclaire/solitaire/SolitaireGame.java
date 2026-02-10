@@ -55,10 +55,98 @@ public class SolitaireGame extends ApplicationAdapter {
     private boolean justSelected;
     private boolean winState;
     private int score;
+    private int drawCount = 3;
+    private String frontPrefix = "card";
+    private String backName = "purple_back_dark_inner.png";
+    private static final String[] BACK_CHOICES = {
+        "black_back_dark_inner.png",
+        "black_back_intricate.png",
+        "black_back_light_inner.png",
+        "black_back_line.png",
+        "black_back_line_light.png",
+        "black_back_plain.png",
+        "black_back_suits.png",
+        "black_back_suits_dark.png",
+        "blue_back_dark_inner.png",
+        "blue_back_intricate.png",
+        "blue_back_light_inner.png",
+        "blue_back_line.png",
+        "blue_back_line_light.png",
+        "blue_back_plain.png",
+        "blue_back_suits.png",
+        "blue_back_suits_dark.png",
+        "green_back_dark_inner.png",
+        "green_back_intricate.png",
+        "green_back_light_inner.png",
+        "green_back_line.png",
+        "green_back_line_light.png",
+        "green_back_plain.png",
+        "green_back_suits.png",
+        "green_back_suits_dark.png",
+        "orange_back_dark_inner.png",
+        "orange_back_intricate.png",
+        "orange_back_light_inner.png",
+        "orange_back_line.png",
+        "orange_back_line_light.png",
+        "orange_back_plain.png",
+        "orange_back_suits.png",
+        "orange_back_suits_dark.png",
+        "purple_back_dark_inner.png",
+        "purple_back_intricate.png",
+        "purple_back_light_inner.png",
+        "purple_back_line.png",
+        "purple_back_line_light.png",
+        "purple_back_plain.png",
+        "purple_back_suits.png",
+        "purple_back_suits_dark.png",
+        "red_back_dark_inner.png",
+        "red_back_intricate.png",
+        "red_back_light_inner.png",
+        "red_back_line.png",
+        "red_back_line_light.png",
+        "red_back_plain.png",
+        "red_back_suits.png",
+        "red_back_suits_dark.png"
+    };
     private float newGameX;
     private float newGameY;
     private float newGameWidth;
     private float newGameHeight;
+    private float optionsButtonX;
+    private float optionsButtonY;
+    private float optionsButtonWidth;
+    private float optionsButtonHeight;
+    private boolean optionsVisible;
+    private float optionsX;
+    private float optionsY;
+    private float optionsWidth;
+    private float optionsHeight;
+    private float optionsPadding;
+    private float optionsRowHeight;
+    private float draw1X;
+    private float draw1Y;
+    private float draw1W;
+    private float draw1H;
+    private float draw3X;
+    private float draw3Y;
+    private float draw3W;
+    private float draw3H;
+    private float frontClassicX;
+    private float frontClassicY;
+    private float frontClassicW;
+    private float frontClassicH;
+    private float frontSimpleX;
+    private float frontSimpleY;
+    private float frontSimpleW;
+    private float frontSimpleH;
+    private float backPrevX;
+    private float backPrevY;
+    private float backPrevW;
+    private float backPrevH;
+    private float backNextX;
+    private float backNextY;
+    private float backNextW;
+    private float backNextH;
     private float rulesButtonX;
     private float rulesButtonY;
     private float rulesButtonWidth;
@@ -84,7 +172,7 @@ public class SolitaireGame extends ApplicationAdapter {
             + "- Foundation: Build up in the same suit from Ace to King.\n"
             + "- Empty tableau slots accept only Kings.\n"
             + "- Turn over a face-down tableau card when it becomes the top card.\n\n"
-            + "Stock: Draw 3 cards to the waste. Only the top waste card is playable.\n"
+            + "Stock: Draw 1 or 3 cards to the waste (set in Options). Only the top waste card is playable.\n"
             + "Recycle the waste back to the stock when empty (score penalty applies).\n\n"
             + "Scoring (standard draw-3):\n"
             + "+10 to foundation, +5 waste to tableau, +5 flip a tableau card, "
@@ -108,7 +196,7 @@ public class SolitaireGame extends ApplicationAdapter {
         viewport.apply(true);
 
         whiteTex = createSolidTexture(Color.WHITE);
-        loadCardArt();
+        reloadCardArt();
 
         setupGame();
 
@@ -162,14 +250,7 @@ public class SolitaireGame extends ApplicationAdapter {
         batch.dispose();
         whiteTex.dispose();
         font.dispose();
-        if (backTexture != null) {
-            backTexture.dispose();
-        }
-        if (cardTextures != null) {
-            for (Texture texture : cardTextures) {
-                texture.dispose();
-            }
-        }
+        disposeCardArt();
     }
 
     private Texture createSolidTexture(Color color) {
@@ -181,18 +262,21 @@ public class SolitaireGame extends ApplicationAdapter {
         return texture;
     }
 
-    private void loadCardArt() {
+    private void reloadCardArt() {
+        disposeCardArt();
         cardRegions = new ObjectMap<>();
         cardTextures = new Array<>();
 
-        backTexture = new Texture("Card_Game_GFX/Cards/card_backs/purple_back_dark_inner.png");
+        backTexture = new Texture("Card_Game_GFX/Cards/card_backs/" + backName);
         backTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         backRegion = new TextureRegion(backTexture);
 
-        String[] suits = {"clubs", "diamond", "heart", "spade"};
+        boolean simple = "simplecard".equals(frontPrefix);
+        String clubsToken = simple ? "club" : "clubs";
+        String[] suits = {clubsToken, "diamond", "heart", "spade"};
         for (String suit : suits) {
             for (int rank = 1; rank <= 13; rank++) {
-                String name = "card_" + suit + "_" + rank;
+                String name = frontPrefix + "_" + suit + "_" + rank;
                 String path = "Card_Game_GFX/Cards/" + name + ".png";
                 Texture texture = new Texture(path);
                 texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -200,6 +284,20 @@ public class SolitaireGame extends ApplicationAdapter {
                 cardRegions.put(name, new TextureRegion(texture));
             }
         }
+    }
+
+    private void disposeCardArt() {
+        if (backTexture != null) {
+            backTexture.dispose();
+            backTexture = null;
+        }
+        if (cardTextures != null) {
+            for (Texture texture : cardTextures) {
+                texture.dispose();
+            }
+        }
+        cardTextures = null;
+        cardRegions = null;
     }
 
     private void setupGame() {
@@ -276,10 +374,19 @@ public class SolitaireGame extends ApplicationAdapter {
         rulesButtonHeight = newGameHeight;
         rulesButtonX = newGameX - gutter - rulesButtonWidth;
         rulesButtonY = newGameY;
+        optionsButtonWidth = newGameWidth;
+        optionsButtonHeight = newGameHeight;
+        optionsButtonX = rulesButtonX - gutter - optionsButtonWidth;
+        optionsButtonY = newGameY;
         rulesWidth = worldWidth * 0.72f;
         rulesHeight = worldHeight * 0.72f;
         rulesX = (worldWidth - rulesWidth) * 0.5f;
         rulesY = (worldHeight - rulesHeight) * 0.5f;
+        optionsWidth = rulesWidth;
+        optionsHeight = rulesHeight;
+        optionsX = rulesX;
+        optionsY = rulesY;
+        optionsPadding = optionsWidth * 0.06f;
         float baseFaceDown = cardHeight * 0.12f;
         float baseFaceUp = cardHeight * 0.30f;
         float maxSpacing = baseFaceUp;
@@ -297,6 +404,7 @@ public class SolitaireGame extends ApplicationAdapter {
         if (font != null) {
             float fontScale = Math.max(0.6f, cardHeight / 220f) * 2f;
             font.getData().setScale(fontScale);
+            optionsRowHeight = font.getLineHeight() * 1.8f;
         }
         updateRulesLayout();
     }
@@ -321,9 +429,13 @@ public class SolitaireGame extends ApplicationAdapter {
 
         drawNewGameButton();
         drawRulesButton();
+        drawOptionsButton();
         drawScore();
         if (rulesVisible) {
             drawRulesOverlay();
+        }
+        if (optionsVisible) {
+            drawOptionsOverlay();
         }
     }
 
@@ -344,8 +456,9 @@ public class SolitaireGame extends ApplicationAdapter {
             drawOutline(waste.x, waste.y, cardWidth, cardHeight);
             return;
         }
-        int start = Math.max(0, size - 3);
-        float offset = cardWidth * 0.3f;
+        int visible = drawCount == 3 ? 3 : 1;
+        int start = Math.max(0, size - visible);
+        float offset = drawCount == 3 ? cardWidth * 0.3f : 0f;
         for (int i = start; i < size; i++) {
             float x = waste.x + (i - start) * offset;
             drawCard(x, waste.y, waste.cards.get(i));
@@ -384,7 +497,7 @@ public class SolitaireGame extends ApplicationAdapter {
 
     private void drawCard(float x, float y, Card card) {
         if (card.faceUp) {
-            TextureRegion region = cardRegions.get(card.assetKey());
+            TextureRegion region = cardRegions.get(card.assetKey(frontPrefix));
             if (region != null) {
                 batch.draw(region, x, y, cardWidth, cardHeight);
             } else {
@@ -431,8 +544,9 @@ public class SolitaireGame extends ApplicationAdapter {
             height = maxY - minY;
         } else if (selectedPile.type == PileType.WASTE) {
             int size = selectedPile.cards.size;
-            int start = Math.max(0, size - 3);
-            float offset = cardWidth * 0.3f;
+            int visible = drawCount == 3 ? 3 : 1;
+            int start = Math.max(0, size - visible);
+            float offset = drawCount == 3 ? cardWidth * 0.3f : 0f;
             x = selectedPile.x + (size - 1 - start) * offset;
             height = cardHeight;
         }
@@ -473,6 +587,18 @@ public class SolitaireGame extends ApplicationAdapter {
         layout.setText(font, "Rules");
         float textX = rulesButtonX + (rulesButtonWidth - layout.width) * 0.5f;
         float textY = rulesButtonY + (rulesButtonHeight + layout.height) * 0.5f;
+        font.draw(batch, layout, textX, textY);
+    }
+
+    private void drawOptionsButton() {
+        batch.setColor(0f, 0f, 0f, 0.4f);
+        batch.draw(whiteTex, optionsButtonX, optionsButtonY, optionsButtonWidth, optionsButtonHeight);
+        batch.setColor(Color.WHITE);
+        drawOutline(optionsButtonX, optionsButtonY, optionsButtonWidth, optionsButtonHeight);
+        font.setColor(Color.WHITE);
+        layout.setText(font, "Options");
+        float textX = optionsButtonX + (optionsButtonWidth - layout.width) * 0.5f;
+        float textY = optionsButtonY + (optionsButtonHeight + layout.height) * 0.5f;
         font.draw(batch, layout, textX, textY);
     }
 
@@ -520,6 +646,86 @@ public class SolitaireGame extends ApplicationAdapter {
         }
     }
 
+    private void drawOptionsOverlay() {
+        batch.setColor(0f, 0f, 0f, 0.78f);
+        batch.draw(whiteTex, optionsX, optionsY, optionsWidth, optionsHeight);
+        batch.setColor(Color.WHITE);
+        drawOutline(optionsX, optionsY, optionsWidth, optionsHeight);
+
+        float y = optionsY + optionsHeight - optionsPadding;
+        font.setColor(Color.WHITE);
+        layout.setText(font, "Options");
+        font.draw(batch, layout, optionsX + optionsPadding, y);
+
+        y -= optionsRowHeight;
+        layout.setText(font, "Draw");
+        font.draw(batch, layout, optionsX + optionsPadding, y);
+        float buttonW = optionsWidth * 0.18f;
+        float buttonH = optionsRowHeight * 0.7f;
+        draw1X = optionsX + optionsWidth * 0.35f;
+        draw1Y = y - buttonH * 0.65f;
+        draw1W = buttonW;
+        draw1H = buttonH;
+        draw3X = draw1X + buttonW + optionsPadding * 0.6f;
+        draw3Y = draw1Y;
+        draw3W = buttonW;
+        draw3H = buttonH;
+        drawOptionButton(draw1X, draw1Y, draw1W, draw1H, "1", drawCount == 1);
+        drawOptionButton(draw3X, draw3Y, draw3W, draw3H, "3", drawCount == 3);
+
+        y -= optionsRowHeight;
+        layout.setText(font, "Front");
+        font.draw(batch, layout, optionsX + optionsPadding, y);
+        frontClassicX = optionsX + optionsWidth * 0.35f;
+        frontClassicY = y - buttonH * 0.65f;
+        frontClassicW = buttonW;
+        frontClassicH = buttonH;
+        frontSimpleX = frontClassicX + buttonW + optionsPadding * 0.6f;
+        frontSimpleY = frontClassicY;
+        frontSimpleW = buttonW;
+        frontSimpleH = buttonH;
+        drawOptionButton(frontClassicX, frontClassicY, frontClassicW, frontClassicH, "Classic",
+            "card".equals(frontPrefix));
+        drawOptionButton(frontSimpleX, frontSimpleY, frontSimpleW, frontSimpleH, "Simple",
+            "simplecard".equals(frontPrefix));
+
+        y -= optionsRowHeight;
+        layout.setText(font, "Back");
+        font.draw(batch, layout, optionsX + optionsPadding, y);
+        float arrowW = buttonH;
+        float arrowH = buttonH;
+        backPrevX = optionsX + optionsWidth * 0.35f;
+        backPrevY = y - arrowH * 0.65f;
+        backPrevW = arrowW;
+        backPrevH = arrowH;
+        backNextX = backPrevX + optionsWidth * 0.45f;
+        backNextY = backPrevY;
+        backNextW = arrowW;
+        backNextH = arrowH;
+        drawOptionButton(backPrevX, backPrevY, backPrevW, backPrevH, "<", false);
+        drawOptionButton(backNextX, backNextY, backNextW, backNextH, ">", false);
+        String backLabel = formatBackName(backName);
+        layout.setText(font, backLabel);
+        float labelX = backPrevX + arrowW + optionsPadding * 0.5f;
+        float labelY = backPrevY + (arrowH + layout.height) * 0.5f;
+        font.draw(batch, layout, labelX, labelY);
+    }
+
+    private void drawOptionButton(float x, float y, float w, float h, String text, boolean selected) {
+        if (selected) {
+            batch.setColor(1f, 1f, 1f, 0.25f);
+        } else {
+            batch.setColor(0f, 0f, 0f, 0.4f);
+        }
+        batch.draw(whiteTex, x, y, w, h);
+        batch.setColor(Color.WHITE);
+        drawOutline(x, y, w, h);
+        layout.setText(font, text);
+        float textX = x + (w - layout.width) * 0.5f;
+        float textY = y + (h + layout.height) * 0.5f;
+        font.draw(batch, layout, textX, textY);
+    }
+
     private void drawDraggedCards() {
         Array<Card> moving = getSelectedCards();
         if (moving.size == 0) {
@@ -540,6 +746,13 @@ public class SolitaireGame extends ApplicationAdapter {
         downY = tmp.y;
         pointerDown = true;
         justSelected = false;
+
+        if (optionsVisible) {
+            if (!handleOptionsClick(tmp.x, tmp.y)) {
+                optionsVisible = false;
+            }
+            return true;
+        }
 
         if (rulesVisible) {
             rulesDragging = true;
@@ -562,6 +775,12 @@ public class SolitaireGame extends ApplicationAdapter {
             rulesDragStartY = tmp.y;
             rulesDragMoved = false;
             rulesOpenedThisTap = true;
+            return true;
+        }
+
+        if (hitOptionsButton(tmp.x, tmp.y)) {
+            optionsVisible = true;
+            rulesVisible = false;
             return true;
         }
 
@@ -596,6 +815,9 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private boolean handleTouchDragged(int screenX, int screenY) {
+        if (optionsVisible) {
+            return true;
+        }
         if (rulesVisible && rulesDragging) {
             tmp.set(screenX, screenY);
             viewport.unproject(tmp);
@@ -628,6 +850,9 @@ public class SolitaireGame extends ApplicationAdapter {
     }
 
     private boolean handleTouchUp(int screenX, int screenY) {
+        if (optionsVisible) {
+            return true;
+        }
         if (rulesVisible) {
             rulesDragging = false;
             if (rulesOpenedThisTap) {
@@ -687,7 +912,7 @@ public class SolitaireGame extends ApplicationAdapter {
         }
         clearSelection();
         if (stock.cards.size > 0) {
-            for (int i = 0; i < 3 && stock.cards.size > 0; i++) {
+            for (int i = 0; i < drawCount && stock.cards.size > 0; i++) {
                 Card card = stock.cards.pop();
                 card.faceUp = true;
                 waste.cards.add(card);
@@ -895,12 +1120,90 @@ public class SolitaireGame extends ApplicationAdapter {
             && y >= rulesButtonY && y <= rulesButtonY + rulesButtonHeight;
     }
 
+    private boolean hitOptionsButton(float x, float y) {
+        return x >= optionsButtonX && x <= optionsButtonX + optionsButtonWidth
+            && y >= optionsButtonY && y <= optionsButtonY + optionsButtonHeight;
+    }
+
     private boolean handleScroll(float amountY) {
-        if (!rulesVisible) {
+        if (optionsVisible || !rulesVisible) {
             return false;
         }
         rulesScroll = clamp(rulesScroll + amountY * 24f, 0f, rulesMaxScroll);
         return true;
+    }
+
+    private boolean handleOptionsClick(float x, float y) {
+        if (hitRect(x, y, draw1X, draw1Y, draw1W, draw1H)) {
+            drawCount = 1;
+            return true;
+        }
+        if (hitRect(x, y, draw3X, draw3Y, draw3W, draw3H)) {
+            drawCount = 3;
+            return true;
+        }
+        if (hitRect(x, y, frontClassicX, frontClassicY, frontClassicW, frontClassicH)) {
+            if (!"card".equals(frontPrefix)) {
+                frontPrefix = "card";
+                reloadCardArt();
+            }
+            return true;
+        }
+        if (hitRect(x, y, frontSimpleX, frontSimpleY, frontSimpleW, frontSimpleH)) {
+            if (!"simplecard".equals(frontPrefix)) {
+                frontPrefix = "simplecard";
+                reloadCardArt();
+            }
+            return true;
+        }
+        if (hitRect(x, y, backPrevX, backPrevY, backPrevW, backPrevH)) {
+            int index = findBackIndex();
+            index = (index - 1 + BACK_CHOICES.length) % BACK_CHOICES.length;
+            backName = BACK_CHOICES[index];
+            reloadCardArt();
+            return true;
+        }
+        if (hitRect(x, y, backNextX, backNextY, backNextW, backNextH)) {
+            int index = findBackIndex();
+            index = (index + 1) % BACK_CHOICES.length;
+            backName = BACK_CHOICES[index];
+            reloadCardArt();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hitRect(float x, float y, float rx, float ry, float rw, float rh) {
+        return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
+    }
+
+    private int findBackIndex() {
+        for (int i = 0; i < BACK_CHOICES.length; i++) {
+            if (BACK_CHOICES[i].equals(backName)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private String formatBackName(String name) {
+        String label = name.replace(".png", "").replace("_back_", " ");
+        label = label.replace("_", " ");
+        String[] parts = label.split("\\s+");
+        StringBuilder builder = new StringBuilder();
+        for (String part : parts) {
+            if (part.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                builder.append(part.substring(1));
+            }
+        }
+        return builder.toString();
     }
 
     private void updateRulesLayout() {
@@ -969,8 +1272,9 @@ public class SolitaireGame extends ApplicationAdapter {
             return hitStack(waste, x, y);
         }
         int size = waste.cards.size;
-        int start = Math.max(0, size - 3);
-        float offset = cardWidth * 0.3f;
+        int visible = drawCount == 3 ? 3 : 1;
+        int start = Math.max(0, size - visible);
+        float offset = drawCount == 3 ? cardWidth * 0.3f : 0f;
         for (int i = start; i < size; i++) {
             float cardX = waste.x + (i - start) * offset;
             if (x >= cardX && x <= cardX + cardWidth && y >= waste.y && y <= waste.y + cardHeight) {
@@ -1038,11 +1342,11 @@ public class SolitaireGame extends ApplicationAdapter {
             return suit == Suit.HEARTS || suit == Suit.DIAMONDS;
         }
 
-        String assetKey() {
+        String assetKey(String prefix) {
             String suitName;
             switch (suit) {
                 case CLUBS:
-                    suitName = "clubs";
+                    suitName = "simplecard".equals(prefix) ? "club" : "clubs";
                     break;
                 case DIAMONDS:
                     suitName = "diamond";
@@ -1058,7 +1362,7 @@ public class SolitaireGame extends ApplicationAdapter {
                     break;
             }
 
-            return "card_" + suitName + "_" + rank;
+            return prefix + "_" + suitName + "_" + rank;
         }
     }
 
